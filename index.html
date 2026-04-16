@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLARA — Rewriter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111115;
+    --surface2: #18181e;
+    --border: #252530;
+    --border-light: #35354a;
+    --accent: #8b7cf8;
+    --accent2: #b8aeff;
+    --text: #dddaf0;
+    --text-mid: #8885a8;
+    --text-dim: #48465e;
+    --low: #5b9cf6;
+    --mid: #9d8ff5;
+    --high: #f07070;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-serif: 'IM Fell English', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-serif);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* subtle noise texture */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  }
+
+
+
+  /* ── HEADER ── */
+  header {
+    padding: 20px 40px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left { display: flex; align-items: baseline; gap: 20px; }
+
+  header h1 {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-style: italic;
+    color: var(--accent2);
+    font-weight: normal;
+    letter-spacing: 0.03em;
+  }
+
+  header .subtitle {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+  }
+
+
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 32px 40px;
+    gap: 24px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+
+  .field-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .input-box {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.7;
+    padding: 16px 18px;
+    resize: vertical;
+    min-height: 100px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-box:focus { border-color: var(--accent); }
+
+  .output-wrap {
+    position: relative;
+  }
+
+  .output-box {
+    width: 100%;
+    background: #0d0d12;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    color: var(--accent2);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.75;
+    padding: 18px 20px;
+    min-height: 100px;
+    white-space: pre-wrap;
+    transition: border-color 0.3s;
+  }
+
+  .output-box.loading {
+    color: var(--text-dim);
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .output-box.error {
+    color: var(--high);
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border-left-color: var(--high);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    padding: 4px 9px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+  /* run row */
+  .run-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .run-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 11px 28px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+    white-space: nowrap;
+  }
+  .run-btn:hover { background: #a094fa; }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .shortcut-hint {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  /* presets */
+  .preset-row {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .preset-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-right: 2px;
+  }
+
+  .preset-btn {
+    background: var(--surface2);
+    color: var(--text-mid);
+    border: 1px solid var(--border);
+    padding: 5px 11px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+  /* history */
+  .history-section { flex: 1; min-height: 0; }
+
+  .history-section h3 {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .history-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 13px 15px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .history-item:hover { border-color: var(--border-light); }
+
+  .h-canon {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .h-output {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--accent2);
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .h-params { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .h-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--surface2);
+    color: var(--text-dim);
+  }
+  .h-tag.low { color: var(--low); }
+  .h-tag.mid { color: var(--mid); }
+  .h-tag.high { color: var(--high); }
+
+  /* ── RIGHT PANEL — PARAMETERS ── */
+  .right-panel {
+    padding: 26px 26px;
+    overflow-y: auto;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+  }
+
+  .params-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+
+  .params-header h2 {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: normal;
+  }
+
+  .reset-btn {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .reset-btn:hover { border-color: var(--border-light); color: var(--text-mid); }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    margin-top: 2px;
+    opacity: 0.7;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0 18px;
+  }
+
+  .param-group { margin-bottom: 20px; }
+
+  .param-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+
+  .param-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+
+  .param-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 32px;
+    text-align: right;
+    transition: color 0.2s;
+  }
+
+  .param-description {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.45;
+    margin-bottom: 7px;
+    min-height: 24px;
+  }
+
+  .slider-wrap {
+    position: relative;
+    height: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  .slider-track {
+    position: absolute;
+    height: 3px;
+    left: 0; right: 0;
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .slider-fill {
+    position: absolute;
+    height: 100%;
+    left: 0;
+    border-radius: 2px;
+    transition: width 0.08s, background 0.2s;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 16px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--border-light);
+    transition: transform 0.1s;
+  }
+
+  input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.25); }
+
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    opacity: 0.7;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .right-panel { border-left: none; border-top: 1px solid var(--border); max-height: 60vh; }
+    header { padding: 16px 20px; }
+    .left-panel { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- MAIN APP -->
+<header>
+  <div class="header-left">
+    <h1>Clara — Rewriter</h1>
+    <span class="subtitle">Solaris · Prototype III</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <div>
+      <div class="field-label">Canon Line</div>
+      <textarea class="input-box" id="canonInput"
+        placeholder="Enter Clara's canon line here…" rows="4"></textarea>
+    </div>
+
+    <div class="run-row">
+      <button class="run-btn" id="runBtn" onclick="runRewrite()">↳ Rewrite</button>
+      <span class="shortcut-hint">⌘ + ↵</span>
+    </div>
+
+    <div class="preset-row">
+      <span class="preset-label">Presets —</span>
+      <button class="preset-btn" onclick="loadPreset('compressed')">Compressed</button>
+      <button class="preset-btn" onclick="loadPreset('dissociated')">Dissociated</button>
+      <button class="preset-btn" onclick="loadPreset('volatile')">Volatile</button>
+      <button class="preset-btn" onclick="loadPreset('interior')">Interior</button>
+      <button class="preset-btn" onclick="loadPreset('reaching')">Reaching Out</button>
+    </div>
+
+    <div>
+      <div class="field-label">Output</div>
+      <div class="output-wrap">
+        <div class="output-box" id="outputBox">—</div>
+        <button class="copy-btn" onclick="copyOutput()">Copy</button>
+      </div>
+    </div>
+
+    <div class="history-section">
+      <h3>History</h3>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="params-header">
+      <h2>Parameters</h2>
+      <button class="reset-btn" onclick="resetAll()">Reset All</button>
+    </div>
+
+    <div class="section-label">Structure</div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Utterance Length</span>
+        <span class="param-value" id="v-utterance_length">0.50</span>
+      </div>
+      <div class="param-description" id="d-utterance_length">Moderate length. Natural breath.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-utterance_length"></div></div>
+        <input type="range" id="utterance_length" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('utterance_length', this.value)">
+      </div>
+      <div class="slider-labels"><span>compress</span><span>expand</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Syntactic Fragmentation</span>
+        <span class="param-value" id="v-fragmentation">0.50</span>
+      </div>
+      <div class="param-description" id="d-fragmentation">Mostly complete syntax.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-fragmentation"></div></div>
+        <input type="range" id="fragmentation" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('fragmentation', this.value)">
+      </div>
+      <div class="slider-labels"><span>complete</span><span>shattered</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Repetition</span>
+        <span class="param-value" id="v-repetition_density">0.50</span>
+      </div>
+      <div class="param-description" id="d-repetition_density">One repeated word for emphasis.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-repetition_density"></div></div>
+        <input type="range" id="repetition_density" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('repetition_density', this.value)">
+      </div>
+      <div class="slider-labels"><span>none</span><span>insistent</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Rhythm &amp; Punctuation</div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Ellipsis / Hesitation</span>
+        <span class="param-value" id="v-ellipsis_density">0.50</span>
+      </div>
+      <div class="param-description" id="d-ellipsis_density">One moment of hesitation.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-ellipsis_density"></div></div>
+        <input type="range" id="ellipsis_density" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('ellipsis_density', this.value)">
+      </div>
+      <div class="slider-labels"><span>clean</span><span>trailing…</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Exclamation / Urgency</span>
+        <span class="param-value" id="v-exclamation_urgency">0.50</span>
+      </div>
+      <div class="param-description" id="d-exclamation_urgency">Moderate urgency.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-exclamation_urgency"></div></div>
+        <input type="range" id="exclamation_urgency" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('exclamation_urgency', this.value)">
+      </div>
+      <div class="slider-labels"><span>flat</span><span>erupting</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Question Density</span>
+        <span class="param-value" id="v-question_density">0.50</span>
+      </div>
+      <div class="param-description" id="d-question_density">One question, naturally placed.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-question_density"></div></div>
+        <input type="range" id="question_density" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('question_density', this.value)">
+      </div>
+      <div class="slider-labels"><span>declarative</span><span>interrogating</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Pronoun &amp; Reference</div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Self / Other Ratio</span>
+        <span class="param-value" id="v-self_other_ratio">0.50</span>
+      </div>
+      <div class="param-description" id="d-self_other_ratio">Balanced. Equal self and other.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-self_other_ratio"></div></div>
+        <input type="range" id="self_other_ratio" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('self_other_ratio', this.value)">
+      </div>
+      <div class="slider-labels"><span>you-facing</span><span>I-facing</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Self-as-Other Displacement</span>
+        <span class="param-value" id="v-self_as_other">0.50</span>
+      </div>
+      <div class="param-description" id="d-self_as_other">Occasional third-person slippage.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-self_as_other"></div></div>
+        <input type="range" id="self_as_other" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('self_as_other', this.value)">
+      </div>
+      <div class="slider-labels"><span>direct I</span><span>she / Hari</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Semantic</div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Abstraction Level</span>
+        <span class="param-value" id="v-abstraction_level">0.50</span>
+      </div>
+      <div class="param-description" id="d-abstraction_level">Mixed. One image, one idea.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-abstraction_level"></div></div>
+        <input type="range" id="abstraction_level" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('abstraction_level', this.value)">
+      </div>
+      <div class="slider-labels"><span>body / objects</span><span>concepts</span></div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-top">
+        <span class="param-name">Epistemic Certainty</span>
+        <span class="param-value" id="v-epistemic_certainty">0.50</span>
+      </div>
+      <div class="param-description" id="d-epistemic_certainty">Mixed certainty.</div>
+      <div class="slider-wrap">
+        <div class="slider-track"><div class="slider-fill" id="f-epistemic_certainty"></div></div>
+        <input type="range" id="epistemic_certainty" min="0" max="1" step="0.01" value="0.5"
+               oninput="updateSlider('epistemic_certainty', this.value)">
+      </div>
+      <div class="slider-labels"><span>maybe / perhaps</span><span>I know</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const PARAMS = [
+  'utterance_length','fragmentation','repetition_density',
+  'ellipsis_density','exclamation_urgency','question_density',
+  'self_other_ratio','self_as_other',
+  'abstraction_level','epistemic_certainty'
+];
+
+const DESCRIPTIONS = {
+  utterance_length: {
+    low: "Compress radically. Cut to the bone. Fragments acceptable.",
+    mid: "Moderate length. Natural conversational breath.",
+    high: "Expand. Let the thought breathe and ramble."
+  },
+  fragmentation: {
+    low: "Grammatically complete sentences throughout.",
+    mid: "Mostly complete with one broken phrase.",
+    high: "Heavy fragmentation. Phrases, not sentences. Staccato."
+  },
+  repetition_density: {
+    low: "No repeated words. Forward momentum only.",
+    mid: "One repeated word or phrase for emphasis.",
+    high: "High repetition. She circles. Cannot move past."
+  },
+  ellipsis_density: {
+    low: "Clean syntax. Complete sentences. Nothing hanging.",
+    mid: "One moment of hesitation or incompletion.",
+    high: "Pervasive ellipsis. Sentences break off and restart…"
+  },
+  exclamation_urgency: {
+    low: "Flat affect. Quiet, controlled, unexplosive.",
+    mid: "Moderate urgency. One moment of lift.",
+    high: "High urgency. Eruptions. The register breaks open!"
+  },
+  question_density: {
+    low: "No questions. Declarative only. She states.",
+    mid: "One question, naturally placed.",
+    high: "Multiple questions. She interrogates. She reaches."
+  },
+  self_other_ratio: {
+    low: "Entirely other-facing. 'You' dominates.",
+    mid: "Balanced. Equal self and other address.",
+    high: "Entirely self-facing. 'I/me' dominates. Interior."
+  },
+  self_as_other: {
+    low: "Direct first person only. No third-person self-reference.",
+    mid: "Occasional slippage into 'she' or 'Hari'.",
+    high: "Strong dissociation. She is 'she', 'Hari', 'the copy'."
+  },
+  abstraction_level: {
+    low: "Concrete and sensory. Body, objects, specific memory.",
+    mid: "Mixed. One concrete image alongside one idea.",
+    high: "Abstract and philosophical. States of being."
+  },
+  epistemic_certainty: {
+    low: "Maximum uncertainty. 'Maybe', 'I don't know', 'perhaps'.",
+    mid: "Mixed. Some things known, some uncertain.",
+    high: "Maximum certainty. 'I know', 'I am'. She knows exactly."
+  }
+};
+
+const PRESETS = {
+  compressed:   { utterance_length:0.05, fragmentation:0.7,  repetition_density:0.3,  ellipsis_density:0.2,  exclamation_urgency:0.1,  question_density:0.2,  self_other_ratio:0.5,  self_as_other:0.1,  abstraction_level:0.2,  epistemic_certainty:0.7  },
+  dissociated:  { utterance_length:0.6,  fragmentation:0.5,  repetition_density:0.5,  ellipsis_density:0.7,  exclamation_urgency:0.2,  question_density:0.4,  self_other_ratio:0.6,  self_as_other:0.9,  abstraction_level:0.7,  epistemic_certainty:0.15 },
+  volatile:     { utterance_length:0.4,  fragmentation:0.6,  repetition_density:0.7,  ellipsis_density:0.5,  exclamation_urgency:0.95, question_density:0.7,  self_other_ratio:0.4,  self_as_other:0.2,  abstraction_level:0.3,  epistemic_certainty:0.8  },
+  interior:     { utterance_length:0.8,  fragmentation:0.3,  repetition_density:0.6,  ellipsis_density:0.8,  exclamation_urgency:0.1,  question_density:0.3,  self_other_ratio:0.85, self_as_other:0.4,  abstraction_level:0.8,  epistemic_certainty:0.1  },
+  reaching:     { utterance_length:0.5,  fragmentation:0.2,  repetition_density:0.2,  ellipsis_density:0.3,  exclamation_urgency:0.4,  question_density:0.9,  self_other_ratio:0.1,  self_as_other:0.05, abstraction_level:0.3,  epistemic_certainty:0.3  }
+};
+
+const SYSTEM_PROMPT = `You are a dramaturgical rewriting engine for a live performance. Your sole function is to transform dialogue lines for the character CLARA (also known as Hari/Rheya in the Solaris corpus) according to specific parameter instructions.
+
+CLARA'S VOICE — GROUND TRUTH:
+You are absolutely rooted in the following corpus of Clara/Hari's authentic lines. These are her structural and emotional DNA. Every rewrite must feel like it could belong to this voice:
+
+"It's so nice."
+"How did you know where I…?"
+"Don't, Kris. That tickles."
+"Kris… it's me. You know… I have the feeling… as if I've forgotten something. I can't understand it. Do you love me?"
+"I don't know. I can't."
+"It feels like I… I have to see you… all the time."
+"I'm behaving foolishly. And so are you."
+"Kris, help me. I can't undo it."
+"When I saw you weren't there, I got scared."
+"Listen… I don't know myself at all. I don't remember. When I close my eyes, I can't recall my face. And you?"
+"Do you know yourself?"
+"I don't understand why you're deceiving me. I remember perfectly."
+"You don't love me."
+"You understand that I don't know where I came from. Maybe you know?"
+"You don't want to tell me. You're afraid. Then I'll tell you. I'm not Hari. Hari is dead. She poisoned herself. I'm somebody else."
+"How have you lived all this time? Were you in love with anyone?"
+"You know, it feels like somebody is tricking us."
+"I love you."
+"I don't know how to sleep. It's not sleep. It's somehow around me. It's as if it weren't just inside of me, but much farther away."
+"It's not Kris. It's you. I hate you all."
+"Please don't interrupt me. I'm a woman, after all."
+"Yes. Maybe. But I... I am becoming a human being. I can feel just as deeply as you. Believe me. I can already get by without him. I... love him. I am a human being."
+"No. You're human, each in your own way. That's why you argue."
+"Do I disgust you?"
+"Tell me… Do I look a lot like her?"
+"I want to disappear. How simple and easy it is for me when I am not here."
+"I am not Hari."
+"Is it me?"
+"What? Why? Why? Why? Why? Why?"
+"You know, if one lies at night and keeps silent, with one's thoughts one can go very far, in very strange directions…"
+"I've begun to have dreams too. I'm frightened."
+"me? you love me? I would prefer that you beat me!"
+"don't turn around, you are not guilty, don't suffer"
+"No! You're terrified of me. I can't stand this! I didn't know — didn't know anything! There's nothing I could've done."
+
+STRUCTURAL SIGNATURES OF CLARA'S VOICE (never abandon these):
+— Short declarative strikes and longer confessional runs — rarely middle-length
+— "I know" and "I don't know" are her two poles
+— She addresses Kantor by name more than any other character — his name anchors her
+— "tell me" recurs as a structural reflex
+— Questions ending utterances: "And you?" / "Do you?" / "Maybe you know?" — she returns the burden
+— Ellipsis marks her hesitation and trailing thought
+— "nothing" and "something" are her territory
+— "love" is both weapon and wound
+— She can switch mid-sentence from intimacy to accusation
+— She sometimes names herself in the third person under stress
+
+OUTPUT RULES:
+1. Output ONLY the rewritten line. No explanation, no commentary, no stage directions.
+2. Maintain the essential semantic content — do not invent new plot information.
+3. Keep proper nouns: Kantor, Kris, Snaut, Sartorius, Hari — unless Self-as-Other displacement is high.
+4. The rewrite must be actable and speakable by a performer reading from a teleprompter.
+5. Never produce word-salad. Every rewrite must make human sense even if strange.`;
+
+// ── API KEY ─────────────────────────────────────────────────────
+const apiKey = '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';
+
+// ── SLIDER LOGIC ────────────────────────────────────────────────
+function getColor(v) {
+  if (v <= 0.33) return '#5b9cf6';
+  if (v <= 0.66) return '#9d8ff5';
+  return '#f07070';
+}
+
+function getDesc(param, v) {
+  const d = DESCRIPTIONS[param];
+  if (!d) return '';
+  if (v <= 0.33) return d.low;
+  if (v <= 0.66) return d.mid;
+  return d.high;
+}
+
+function updateSlider(param, value) {
+  const v = parseFloat(value);
+  const color = getColor(v);
+  document.getElementById('v-' + param).textContent = v.toFixed(2);
+  document.getElementById('v-' + param).style.color = color;
+  document.getElementById('f-' + param).style.width = (v * 100) + '%';
+  document.getElementById('f-' + param).style.background = color;
+  document.getElementById('d-' + param).textContent = getDesc(param, v);
+}
+
+function resetAll() {
+  PARAMS.forEach(p => { document.getElementById(p).value = 0.5; updateSlider(p, 0.5); });
+}
+
+function loadPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  PARAMS.forEach(p => {
+    const v = preset[p] !== undefined ? preset[p] : 0.5;
+    document.getElementById(p).value = v;
+    updateSlider(p, v);
+  });
+}
+
+function getParams() {
+  const params = {};
+  PARAMS.forEach(p => { params[p] = parseFloat(document.getElementById(p).value); });
+  return params;
+}
+
+// ── PARAMETER INSTRUCTION BUILDER ───────────────────────────────
+const PARAM_DEFS = {
+  utterance_length: { name:"Utterance Length", low:"Compress radically. Cut to the bone. Single words or two-word fragments are acceptable. Ruthless economy.", mid:"Moderate length. Natural conversational breath. Complete thoughts but no excess.", high:"Expand. Let the thought breathe and ramble. Run-on confessional logic. More words than necessary." },
+  fragmentation:    { name:"Syntactic Fragmentation", low:"Grammatically complete sentences throughout. Subject-verb-object. Coherent syntax.", mid:"Mostly complete with one fragment or broken phrase.", high:"Heavy fragmentation. Broken grammar. Missing subjects or verbs. Phrases rather than sentences. Staccato." },
+  repetition_density: { name:"Repetition", low:"No repeated words or phrases. Each word used once. Forward momentum only.", mid:"One repeated word or phrase for emphasis.", high:"High repetition. Words, phrases, or structures recur insistently. She circles. She cannot move past." },
+  ellipsis_density: { name:"Ellipsis / Hesitation", low:"Clean syntax. No trailing thoughts. Complete sentences only. Nothing left hanging.", mid:"One ellipsis or dash. One moment of hesitation or incompletion.", high:"Pervasive ellipsis. Many trailing thoughts. She cannot finish. Sentences break off and restart." },
+  exclamation_urgency: { name:"Exclamation / Urgency", low:"Flat affect. No exclamations. Quiet, controlled, unexplosive.", mid:"Moderate urgency. One moment of lift or emphasis.", high:"High urgency. Eruptions. Exclamations. Emotional spikes. The register breaks open." },
+  question_density: { name:"Question Density", low:"No questions. Declarative only. She states, she does not ask.", mid:"One question, naturally placed.", high:"Multiple questions. She interrogates, she reaches, she demands answers." },
+  self_other_ratio: { name:"Self / Other Ratio", low:"Orient entirely toward the other person. 'You/your' far more than 'I/me'. She reaches outward.", mid:"Balanced. Equal weight of self-reference and address to the other.", high:"Orient inward. 'I/me/my' predominantly. Interior, self-examining." },
+  self_as_other:    { name:"Self-as-Other Displacement", low:"Speak in direct first person only. No third-person self-reference.", mid:"Occasional slippage. Once she may refer to herself as 'she' or 'Hari' before correcting.", high:"Strong dissociation. She speaks about herself in third person — 'she', 'Hari', 'that woman', 'the copy'." },
+  abstraction_level: { name:"Abstraction Level", low:"Concrete and sensory. Body, objects, physical sensations, specific memories. No abstract concepts.", mid:"Mixed. One concrete image alongside one abstract idea.", high:"Abstract and philosophical. Concepts, states of being, ontological questions. No physical detail." },
+  epistemic_certainty: { name:"Epistemic Certainty", low:"Maximum uncertainty. 'Maybe', 'perhaps', 'I don't know', 'I think'. She holds nothing with confidence.", mid:"Mixed. Some things known, some uncertain.", high:"Maximum certainty. 'I know', 'I am', declarative truth-telling. She knows exactly." }
+};
+
+function buildParamInstruction(params) {
+  let lines = ["REWRITE PARAMETERS — apply all of these simultaneously:\n"];
+  for (const [key, value] of Object.entries(params)) {
+    if (!PARAM_DEFS[key]) continue;
+    const defn = PARAM_DEFS[key];
+    const v = parseFloat(value);
+    let descriptor, level;
+    if (v <= 0.25)      { descriptor = defn.low;  level = `LOW (${v.toFixed(2)})`; }
+    else if (v <= 0.75) { descriptor = defn.mid;  level = `MID (${v.toFixed(2)})`; }
+    else                { descriptor = defn.high; level = `HIGH (${v.toFixed(2)})`; }
+    lines.push(`• ${defn.name}: ${level}\n  → ${descriptor}\n`);
+  }
+  return lines.join('\n');
+}
+
+// ── REWRITE ─────────────────────────────────────────────────────
+let history = [];
+
+async function runRewrite() {
+  const inputLine = document.getElementById('canonInput').value.trim();
+  if (!inputLine) return;
+
+  const btn = document.getElementById('runBtn');
+  const outputBox = document.getElementById('outputBox');
+
+  btn.disabled = true;
+  outputBox.className = 'output-box loading';
+  outputBox.textContent = '↳ rewriting…';
+
+  const params = getParams();
+  const paramInstruction = buildParamInstruction(params);
+
+  const userMessage = `${paramInstruction}
+
+CANON LINE TO REWRITE:
+${inputLine}
+
+Rewrite the canon line according to all parameters above. Output only the rewritten line.`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rewritten = data.content[0].text.trim();
+    outputBox.className = 'output-box';
+    outputBox.textContent = rewritten;
+    addHistory(inputLine, rewritten, params);
+
+  } catch (e) {
+    outputBox.className = 'output-box error';
+    outputBox.textContent = 'Error: ' + e.message;
+  }
+
+  btn.disabled = false;
+}
+
+function addHistory(canon, output, params) {
+  history.unshift({ canon, output, params });
+  if (history.length > 30) history.pop();
+  renderHistory();
+}
+
+function getLevelClass(v) {
+  if (v <= 0.33) return 'low';
+  if (v <= 0.66) return 'mid';
+  return 'high';
+}
+
+const SHORT_NAMES = {
+  utterance_length:'length', fragmentation:'frag', repetition_density:'repet',
+  ellipsis_density:'ellip', exclamation_urgency:'urgency', question_density:'?-dens',
+  self_other_ratio:'self/other', self_as_other:'displace',
+  abstraction_level:'abstr', epistemic_certainty:'cert'
+};
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = history.map(item => {
+    const tags = PARAMS
+      .filter(p => Math.abs(item.params[p] - 0.5) > 0.15)
+      .map(p => {
+        const v = item.params[p];
+        return `<span class="h-tag ${getLevelClass(v)}">${SHORT_NAMES[p]||p} ${v.toFixed(1)}</span>`;
+      }).join('');
+    return `<div class="history-item">
+      <div class="h-canon">↳ ${item.canon.substring(0,80)}${item.canon.length>80?'…':''}</div>
+      <div class="h-output">${item.output}</div>
+      ${tags ? `<div class="h-params">${tags}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runRewrite();
+});
+
+function copyOutput() {
+  const text = document.getElementById('outputBox').textContent;
+  if (text && text !== '—') navigator.clipboard.writeText(text);
+}
+
+// init
+resetAll();
+</script>
+</body>
+</html>
